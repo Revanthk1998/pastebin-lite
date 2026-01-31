@@ -1,28 +1,13 @@
-// @ts-nocheck
 export const runtime = "nodejs";
 
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import clientPromise from "@/lib/mongodb";
 
-function getNow(req: NextRequest): number {
-  if (process.env.TEST_MODE === "1") {
-    const header = req.headers.get("x-test-now-ms");
-    if (header) {
-      const parsed = Number(header);
-      if (!Number.isNaN(parsed)) return parsed;
-    }
-  }
-  return Date.now();
-}
-
-export async function GET(req: NextRequest, context: any) {
-  const id =
-    context?.params?.id ??
-    (await context?.params)?.id;
-
-  if (!id) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
-  }
+export async function GET(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
+  const { id } = params;
 
   const client = await clientPromise;
   const collection = client.db().collection("pastes");
@@ -33,27 +18,18 @@ export async function GET(req: NextRequest, context: any) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  const now = getNow(req);
-
-  if (paste.expiresAt && new Date(paste.expiresAt).getTime() <= now) {
+  if (paste.expiresAt && new Date(paste.expiresAt).getTime() <= Date.now()) {
     return NextResponse.json({ error: "Expired" }, { status: 404 });
   }
 
-  if (
-    paste.maxViews !== null &&
-    paste.maxViews !== undefined &&
-    paste.views >= paste.maxViews
-  ) {
+  if (paste.maxViews != null && paste.views >= paste.maxViews) {
     return NextResponse.json(
       { error: "View limit exceeded" },
       { status: 404 }
     );
   }
 
-  await collection.updateOne(
-    { _id: id },
-    { $inc: { views: 1 } }
-  );
+  await collection.updateOne({ _id: id }, { $inc: { views: 1 } });
 
   return NextResponse.json({
     content: paste.content,
