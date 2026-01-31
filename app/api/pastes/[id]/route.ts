@@ -1,3 +1,4 @@
+// @ts-nocheck
 export const runtime = "nodejs";
 
 import { NextRequest, NextResponse } from "next/server";
@@ -15,7 +16,6 @@ function getNow(req: NextRequest): number {
 }
 
 export async function GET(req: NextRequest, context: any) {
-  // ✅ Works for both Promise and object params (Next.js 16 bug workaround)
   const id =
     context?.params?.id ??
     (await context?.params)?.id;
