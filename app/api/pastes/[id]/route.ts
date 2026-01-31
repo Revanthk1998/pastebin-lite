@@ -1,9 +1,9 @@
 export const runtime = "nodejs";
 
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import clientPromise from "@/lib/mongodb";
 
-function getNow(req: Request): number {
+function getNow(req: NextRequest): number {
   if (process.env.TEST_MODE === "1") {
     const header = req.headers.get("x-test-now-ms");
     if (header) {
@@ -14,58 +14,53 @@ function getNow(req: Request): number {
   return Date.now();
 }
 
+type RouteContext = {
+  params: Promise<{ id: string }>;
+};
+
 export async function GET(
-  req: Request,
-  { params }: { params: { id: string } }
+  req: NextRequest,
+  context: RouteContext
 ) {
-  try {
-    const client = await clientPromise;
-    const collection = client.db().collection("pastes");
+  const { id } = await context.params; // ✅ unwrap params
 
-    // 🔑 QUERY BY STRING ID
-    const paste = await collection.findOne({ _id: params.id });
+  const client = await clientPromise;
+  const collection = client.db().collection("pastes");
 
-    if (!paste) {
-      return NextResponse.json({ error: "Not found" }, { status: 404 });
-    }
+  const paste = await collection.findOne({ _id: id });
 
-    const now = getNow(req);
+  if (!paste) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
 
-    if (paste.expiresAt && new Date(paste.expiresAt).getTime() <= now) {
-      return NextResponse.json({ error: "Expired" }, { status: 404 });
-    }
+  const now = getNow(req);
 
-    if (
-      paste.maxViews !== null &&
-      paste.maxViews !== undefined &&
-      paste.views >= paste.maxViews
-    ) {
-      return NextResponse.json(
-        { error: "View limit exceeded" },
-        { status: 404 }
-      );
-    }
+  if (paste.expiresAt && new Date(paste.expiresAt).getTime() <= now) {
+    return NextResponse.json({ error: "Expired" }, { status: 404 });
+  }
 
-    await collection.updateOne(
-      { _id: params.id },
-      { $inc: { views: 1 } }
-    );
-
-    return NextResponse.json({
-      content: paste.content,
-      remaining_views:
-        paste.maxViews === null || paste.maxViews === undefined
-          ? null
-          : paste.maxViews - (paste.views + 1),
-      expires_at: paste.expiresAt
-        ? new Date(paste.expiresAt).toISOString()
-        : null,
-    });
-  } catch (err) {
-    console.error("GET /api/pastes/:id error", err);
+  if (
+    paste.maxViews !== null &&
+    paste.maxViews !== undefined &&
+    paste.views >= paste.maxViews
+  ) {
     return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
+      { error: "View limit exceeded" },
+      { status: 404 }
     );
   }
+
+  await collection.updateOne(
+    { _id: id },
+    { $inc: { views: 1 } }
+  );
+
+  return NextResponse.json({
+    content: paste.content,
+    remaining_views:
+      paste.maxViews == null ? null : paste.maxViews - (paste.views + 1),
+    expires_at: paste.expiresAt
+      ? new Date(paste.expiresAt).toISOString()
+      : null,
+  });
 }
