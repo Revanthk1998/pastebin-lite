@@ -33,47 +33,40 @@ export default async function handler(
     return res.status(404).json({ error: "Not found" });
   }
 
-  try {
-    const client = await clientPromise;
-    const collection = client
-      .db()
-      .collection<PasteDoc>("pastes");
+  const client = await clientPromise;
+  const collection = client
+    .db()
+    .collection<PasteDoc>("pastes"); // ✅ FIX
 
-    const paste = await collection.findOne({ _id: id });
+  const paste = await collection.findOne({ _id: id }); // ✅ NO ERROR
 
-    if (!paste) {
-      return res.status(404).json({ error: "Not found" });
-    }
-
-    const now = getNow(req);
-
-    // TTL check
-    if (paste.expiresAt && paste.expiresAt.getTime() <= now) {
-      return res.status(404).json({ error: "Expired" });
-    }
-
-    // View limit check
-    if (paste.maxViews !== null && paste.views >= paste.maxViews) {
-      return res.status(404).json({ error: "View limit exceeded" });
-    }
-
-    await collection.updateOne(
-      { _id: id },
-      { $inc: { views: 1 } }
-    );
-
-    return res.status(200).json({
-      content: paste.content,
-      remaining_views:
-        paste.maxViews === null
-          ? null
-          : paste.maxViews - (paste.views + 1),
-      expires_at: paste.expiresAt
-        ? paste.expiresAt.toISOString()
-        : null,
-    });
-  } catch (err) {
-    console.error("GET /api/pastes/:id error:", err);
-    return res.status(500).json({ error: "Internal server error" });
+  if (!paste) {
+    return res.status(404).json({ error: "Not found" });
   }
+
+  const now = getNow(req);
+
+  if (paste.expiresAt && paste.expiresAt.getTime() <= now) {
+    return res.status(404).json({ error: "Expired" });
+  }
+
+  if (paste.maxViews !== null && paste.views >= paste.maxViews) {
+    return res.status(404).json({ error: "View limit exceeded" });
+  }
+
+  await collection.updateOne(
+    { _id: id },
+    { $inc: { views: 1 } }
+  );
+
+  return res.status(200).json({
+    content: paste.content,
+    remaining_views:
+      paste.maxViews === null
+        ? null
+        : paste.maxViews - (paste.views + 1),
+    expires_at: paste.expiresAt
+      ? paste.expiresAt.toISOString()
+      : null,
+  });
 }
