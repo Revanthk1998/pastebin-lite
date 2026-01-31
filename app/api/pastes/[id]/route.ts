@@ -1,4 +1,4 @@
-export const runtime = "nodejs";
+ export const runtime = "nodejs";
 
 import { NextRequest, NextResponse } from "next/server";
 import clientPromise from "@/lib/mongodb";
@@ -14,15 +14,11 @@ function getNow(req: NextRequest): number {
   return Date.now();
 }
 
-type RouteContext = {
-  params: Promise<{ id: string }>;
-};
-
 export async function GET(
   req: NextRequest,
-  context: RouteContext
+  context: { params: Promise<{ id: string }> }
 ) {
-  const { id } = await context.params; // ✅ unwrap params
+  const { id } = await context.params;
 
   const client = await clientPromise;
   const collection = client.db().collection("pastes");
