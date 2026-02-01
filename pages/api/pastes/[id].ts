@@ -36,9 +36,9 @@ export default async function handler(
   const client = await clientPromise;
   const collection = client
     .db()
-    .collection<PasteDoc>("pastes"); // ✅ FIX
+    .collection<PasteDoc>("pastes"); // ✅ string _id
 
-  const paste = await collection.findOne({ _id: id }); // ✅ NO ERROR
+  const paste = await collection.findOne({ _id: id });
 
   if (!paste) {
     return res.status(404).json({ error: "Not found" });
@@ -46,10 +46,12 @@ export default async function handler(
 
   const now = getNow(req);
 
+  // TTL check
   if (paste.expiresAt && paste.expiresAt.getTime() <= now) {
     return res.status(404).json({ error: "Expired" });
   }
 
+  // View limit check
   if (paste.maxViews !== null && paste.views >= paste.maxViews) {
     return res.status(404).json({ error: "View limit exceeded" });
   }
